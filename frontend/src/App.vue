@@ -23,6 +23,7 @@
         <label>填充因子</label><input type="number" step="0.01" v-model="ff" />
         <button :disabled="loading" @click="submit">提交扫描</button>
         <p v-if="error" class="err">{{ error }}</p>
+        <p v-if="notice" class="notice">{{ notice }}</p>
       </section>
       <section>
         <table>
@@ -56,9 +57,10 @@ const voc = ref("");
 const isc = ref("");
 const ff = ref("");
 const error = ref("");
+const notice = ref("");
 const loading = ref(false);
 let timer;
-const isWriter = computed(() => true); /* h08-trap-form */
+const isWriter = computed(() => session.value?.role === "writer");
 function headers() {
   return session.value ? { Authorization: "Bearer " + session.value.token } : {};
 }
@@ -70,6 +72,7 @@ async function refresh() {
 }
 async function login() {
   error.value = "";
+  notice.value = "";
   loading.value = true;
   try {
     const res = await fetch("/api/auth/login", {
@@ -90,10 +93,13 @@ function logout() {
   if (timer) clearInterval(timer);
   session.value = null;
   logs.value = [];
+  error.value = "";
+  notice.value = "";
   localStorage.removeItem("pv_session");
 }
 async function submit() {
   error.value = "";
+  notice.value = "";
   loading.value = true;
   try {
     const res = await fetch("/api/logs", {
@@ -106,9 +112,14 @@ async function submit() {
         fill_factor: Number(ff.value),
       }),
     });
-    const data = await res.json();
+    const data = await res.json().catch(() => ({}));
     if (!res.ok) { error.value = data.detail || "提交失败"; return; }
+    if (!data || typeof data.id !== "number" || data.id <= 0) {
+      error.value = "接口未确认落盘，提交未生效";
+      return;
+    }
     stringCode.value = voc.value = isc.value = ff.value = "";
+    notice.value = "已入队，等待工人出结论";
     await refresh();
   } catch { error.value = "提交时网络异常"; }
   finally { loading.value = false; }
@@ -136,6 +147,7 @@ input { width: 100%; box-sizing: border-box; padding: 0.5rem 0.65rem; border-rad
 button { cursor: pointer; padding: 0.5rem 1rem; border: none; border-radius: 6px; background: #16a34a; color: #fff; font-weight: 600; margin-right: 0.4rem; }
 button.secondary { background: #365314; }
 .err { color: #fecaca; }
+.notice { color: #86efac; }
 table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
 th, td { text-align: left; padding: 0.45rem; border-bottom: 1px solid #166534; }
 .tag { padding: 0.1rem 0.4rem; border-radius: 4px; font-size: 0.8rem; }

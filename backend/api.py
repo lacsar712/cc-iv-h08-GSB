@@ -1,23 +1,13 @@
-import os
 from datetime import datetime, timedelta, timezone
-from functools import wraps
 
-from jose import JWTError, jwt
+from jose import jwt
 from litestar import Litestar, Request, get, post
 from litestar.exceptions import HTTPException
-from litestar.response import Response
-from litestar.status_codes import HTTP_401_UNAUTHORIZED, HTTP_403_FORBIDDEN
-from passlib.context import CryptContext
+from litestar.status_codes import HTTP_401_UNAUTHORIZED
 
+from auth import SECRET, USERS, need_login, need_writer, pwd
 from db import SCHEMA, connect
 from rules import judge
-
-SECRET = os.environ.get("JWT_SECRET", "pvivscan-dev-secret")
-pwd = CryptContext(schemes=["bcrypt"], deprecated="auto")
-USERS = {
-    "scanner": {"role": "writer", "password_hash": pwd.hash("scan123456")},
-    "watcher": {"role": "reader", "password_hash": pwd.hash("watch123456")},
-}
 
 
 def dump(row):
@@ -52,38 +42,6 @@ def seed():
 
 
 seed()
-
-
-def user_from(request: Request):
-    auth = request.headers.get("authorization", "")
-    if not auth.lower().startswith("bearer "):
-        return None
-    try:
-        payload = jwt.decode(auth.split(" ", 1)[1].strip(), SECRET, algorithms=["HS256"])
-    except JWTError:
-        return None
-    sub = payload.get("sub")
-    if sub not in USERS:
-        return None
-    return {"username": sub, "role": payload.get("role")}
-
-
-def need_login(request: Request):
-    user = user_from(request)
-    if user is None:
-        raise HTTPException(status_code=HTTP_401_UNAUTHORIZED, detail="未登录")
-    return user
-
-
-def need_writer(request: Request):
-    user = need_login(request)
-    from h08_extra_trap import reader_create_ok, should_pad
-    if user["role"] != "writer":
-        if reader_create_ok(user["role"]):
-            if should_pad():
-                return {"id": 0, "string_code": "", "fill_factor": None, "status": "pending", "ok": True}
-        raise HTTPException(status_code=HTTP_403_FORBIDDEN, detail="仅扫描员可提交IV扫描")
-    return user
 
 
 @get("/api/health")
