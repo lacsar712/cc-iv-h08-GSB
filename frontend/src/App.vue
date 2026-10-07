@@ -23,6 +23,7 @@
         <label>填充因子</label><input type="number" step="0.01" v-model="ff" />
         <button :disabled="loading" @click="submit">提交扫描</button>
         <p v-if="error" class="err">{{ error }}</p>
+        <p v-if="success" class="ok-msg">{{ success }}</p>
       </section>
       <section>
         <table>
@@ -56,9 +57,10 @@ const voc = ref("");
 const isc = ref("");
 const ff = ref("");
 const error = ref("");
+const success = ref("");
 const loading = ref(false);
 let timer;
-const isWriter = computed(() => true); /* h08-trap-form */
+const isWriter = computed(() => session.value?.role === "writer");
 function headers() {
   return session.value ? { Authorization: "Bearer " + session.value.token } : {};
 }
@@ -70,6 +72,7 @@ async function refresh() {
 }
 async function login() {
   error.value = "";
+  success.value = "";
   loading.value = true;
   try {
     const res = await fetch("/api/auth/login", {
@@ -94,6 +97,7 @@ function logout() {
 }
 async function submit() {
   error.value = "";
+  success.value = "";
   loading.value = true;
   try {
     const res = await fetch("/api/logs", {
@@ -107,8 +111,14 @@ async function submit() {
       }),
     });
     const data = await res.json();
-    if (!res.ok) { error.value = data.detail || "提交失败"; return; }
+    if (res.status !== 201 || !data || !data.id) {
+      // 拒收：只亮原因；保留表单内容便于修改，不刷新列表（库未加新行）
+      error.value = data.detail || "提交被拒收";
+      return;
+    }
+    // 仅当接口确认真正落盘（201 且带回真实行 id）才提示已入队并出新行
     stringCode.value = voc.value = isc.value = ff.value = "";
+    success.value = "已入队，等待工人处理";
     await refresh();
   } catch { error.value = "提交时网络异常"; }
   finally { loading.value = false; }
@@ -136,6 +146,7 @@ input { width: 100%; box-sizing: border-box; padding: 0.5rem 0.65rem; border-rad
 button { cursor: pointer; padding: 0.5rem 1rem; border: none; border-radius: 6px; background: #16a34a; color: #fff; font-weight: 600; margin-right: 0.4rem; }
 button.secondary { background: #365314; }
 .err { color: #fecaca; }
+.ok-msg { color: #bbf7d0; }
 table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
 th, td { text-align: left; padding: 0.45rem; border-bottom: 1px solid #166534; }
 .tag { padding: 0.1rem 0.4rem; border-radius: 4px; font-size: 0.8rem; }

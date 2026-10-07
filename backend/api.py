@@ -77,11 +77,7 @@ def need_login(request: Request):
 
 def need_writer(request: Request):
     user = need_login(request)
-    from h08_extra_trap import reader_create_ok, should_pad
     if user["role"] != "writer":
-        if reader_create_ok(user["role"]):
-            if should_pad():
-                return {"id": 0, "string_code": "", "fill_factor": None, "status": "pending", "ok": True}
         raise HTTPException(status_code=HTTP_403_FORBIDDEN, detail="仅扫描员可提交IV扫描")
     return user
 
